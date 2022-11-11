@@ -1,0 +1,8 @@
+prefix=/home/neeraj/FetchSim/install
+
+Name: fetch_tools
+Description: Description of fetch_tools
+Version: 0.2.2
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

@@ -1,0 +1,8 @@
+prefix=/home/neeraj/FetchSim/devel
+
+Name: fetch_moveit_config_1
+Description: Description of fetch_moveit_config_1
+Version: 0.3.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

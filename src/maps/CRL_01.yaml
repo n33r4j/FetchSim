@@ -1,0 +1,7 @@
+image: CRL_01.pgm
+resolution: 0.050000
+origin: [-11.173828, -0.762428, 0.000000]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.196
+

@@ -1,0 +1,8 @@
+prefix=/home/neeraj/FetchSim/install
+
+Name: sim_manager
+Description: Description of sim_manager
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 
