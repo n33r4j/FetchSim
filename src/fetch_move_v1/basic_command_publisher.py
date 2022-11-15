@@ -147,7 +147,10 @@ class CommandHandler:
         rospy.init_node("basic_command_publisher")
         self.body_pose_sub = rospy.Subscriber('body25_pose_data', Float32MultiArray, self.body_pose_callback)
         self.human_pos_sub =  rospy.Subscriber('human_pos', PointStamped, self.human_position_callback)
+        self.teleop_command_sub = rospy.Subscriber('pose_teleop_commands', Int32MultiArray, self.teleop_command_callback)
+        
         self.base_command_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
+        
         self.twist_msg = Twist()
         self.twist_msg.linear.x = 0.0
         self.twist_msg.linear.y = 0.0
@@ -161,10 +164,15 @@ class CommandHandler:
         self.actor_position.y = 0.0
         self.actor_position.z = 0.0
 
+        self.pose_teleop_command = Int32MultiArray()
+        self.pose_teleop_command.data = [0,0]
+        self.previous_pose_teleop_command = [0,0]
+
     def publish_base_command(self):
-        self.base_command_pub.publish(self.twist_msg)
+        for i in range(5):
+            self.base_command_pub.publish(self.twist_msg)
         rospy.loginfo("Publishing cmd_vel commands...")
-        self.stop_moving()
+        # self.stop_moving()
 
     def stop_moving(self):
         self.twist_msg.linear.x = 0.0
@@ -172,27 +180,48 @@ class CommandHandler:
         rospy.loginfo("Stoppping...")
 
     def move_forward(self):
-        self.twist_msg.linear.x = 1.0
+        if self.previous_pose_teleop_command[0] == 1:
+            self.twist_msg.linear.x += 0.05
+            self.twist_msg.linear.x = min(self.twist_msg.linear.x, 0.4)
+        else:
+            self.twist_msg.linear.x = 0.1
         self.twist_msg.angular.z = 0.0
         rospy.loginfo("Moving forward...")
 
-    def move_right():
-        #TODO
+    def move_backward(self):
+        self.twist_msg.linear.x = -0.2
+        self.twist_msg.angular.z = 0.0
+        rospy.loginfo("Moving backward...")
+
+    def move_right(self):
+        self.twist_msg.linear.x = 0.0
+        self.twist_msg.angular.z = 0.3*-1.0
+        rospy.loginfo("Moving right...")
         pass
 
     def move_left():
         #TODO
         pass
 
-    def rotate_body(self, direction):
+    def rotate_body(self, direction, speed=0.3):
         self.twist_msg.linear.x = 0.0
-        self.twist_msg.angular.z = 0.4 * (-1.0 if direction=="right" else 1.0)
+        self.twist_msg.angular.z = speed * (-1.0 if direction=="right" else 1.0)
         rospy.loginfo(f"Rotating {direction}...")
 
+    def rotate_body_fixed_head(self, direction, speed=0.3):
+        self.twist_msg.linear.x = 0.0
+        self.twist_msg.angular.z = speed * (-1.0 if direction=="right" else 1.0)
+        rospy.loginfo(f"Rotating {direction}...")
+        MoveHead(0.1, 0.05*(-1.0 if direction=="right" else 1.0), 0.0)
+
+    def teleop_command_callback(self, data):
+        rospy.loginfo(f"I heard Pose Teleop Command, [{data.data[0], data.data[1]}]")
+        self.pose_teleop_command.data = data
+    
     def human_position_callback(self, data):
         # global actor_position
         global curr_pan_goal
-        rospy.loginfo(rospy.get_caller_id() + "I heard human position data")
+        # rospy.loginfo(rospy.get_caller_id() + "I heard human position data")
 
         y_speed_limit = 0.1
         z_speed_limit = 0.1
@@ -219,7 +248,7 @@ class CommandHandler:
         global curr_pan_goal
         global prev_time
         global curr_error, last_error, cum_error, rate_error
-        rospy.loginfo(rospy.get_caller_id() + "I heard pose data")
+        # rospy.loginfo(rospy.get_caller_id() + "I heard pose data")
         
         # Simply putting this here will cause buffering issues.
         # soundhandle.say("I see a human", voice, volume)
@@ -245,7 +274,7 @@ class CommandHandler:
         # curr_pan_goal = (Kp*curr_error)+(Kd*rate_error)
         curr_pan_goal = (human_Xpos-320.0)/320.0
         curr_pan_goal = max(-1.2, min(curr_pan_goal, 1.2))
-        rospy.loginfo(f"goal pos: {curr_pan_goal}")
+        # rospy.loginfo(f"goal pos: {curr_pan_goal}")
 
         # last_error = curr_error
         # prev_time = curr_time
@@ -322,15 +351,38 @@ if __name__ == "__main__":
     # MoveHead(1.0, 0.0, 0.0)
     # rospy.sleep(1.0)
 
+    curr_time = rospy.Time.now()
+    prev_time = 0.0
+    delay = 0.3
+
     # rospy.Time.now()
     try:
         while not rospy.is_shutdown():
-            if human_Xpos > 320.0:
-                CH.rotate_body("right")
-            elif human_Xpos < 300.0:
-                CH.rotate_body("left")
-
-            CH.publish_base_command()
+            curr_time = rospy.Time.now().to_time()
+            if (curr_time - prev_time) > delay:
+                if human_Xpos > 380.0:
+                    speed = 0.5*(abs(human_Xpos-320.0)/320.0)
+                    CH.rotate_body("right", speed)
+                    # soundhandle.say("Rotating right", voice, volume)
+                elif human_Xpos < 240.0:
+                    speed = 0.3*(abs(human_Xpos-320.0)/320.0)
+                    CH.rotate_body("left", speed)
+                    # soundhandle.say("Rotating left", voice, volume)
+                else:
+                    # CH.stop_moving()
+                    if CH.pose_teleop_command.data.data[0] == 1:
+                        CH.move_forward()
+                        CH.previous_pose_teleop_command[0] = 1
+                    elif CH.pose_teleop_command.data.data[0] == -1:
+                        CH.move_backward()
+                        CH.previous_pose_teleop_command[0] = -1
+                    else:
+                        CH.stop_moving()
+                        CH.previous_pose_teleop_command[0] = 0
+                
+                prev_time = curr_time
+            
+                CH.publish_base_command()
     except KeyboardInterrupt:
         rospy.signal_shutdown()
 
