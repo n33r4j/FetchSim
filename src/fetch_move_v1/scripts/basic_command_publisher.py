@@ -44,13 +44,18 @@ from control_msgs.msg import (FollowJointTrajectoryAction,
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from std_msgs.msg import Int32MultiArray, Float32MultiArray
 from geometry_msgs.msg import PointStamped, Point, Twist
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 import time
 from sound_play.msg import SoundRequest
 from sound_play.libsoundplay import SoundClient
 
+# DEMO_P1 = True
+DEMO_P2 = False
+
 
 head_joint_names = ["head_pan_joint", "head_tilt_joint"]
 head_joint_positions = [0.0, 0.0]
+head_joint_velocities = [0.0, 0.0]
 head_pan_MAX = 1.0
 head_pan_inc = 0.9
 head_tilt_MAX = 0.8
@@ -91,6 +96,42 @@ MAX_ANG_VEL = 0.5
 #     for i in range(3):
 #         dist += ((p2[i]-p1[i])**2)
 #     return dist
+class MapGoalPos:
+    def __init__(self, name, x, y, rz, rw):
+        self.name = name
+        self.x = x
+        self.y = y
+        self.rz = rz
+        self.rw = rw
+
+# For Map CRL_G_Nov16
+# You will need to update these if you generate a new map.
+G1 = MapGoalPos("G1", 2.619, -4.452, 0.644, 0.764) # Lab Entrance
+G2 = MapGoalPos("G2", 5.703, -4.177, 0.913, 0.406) # Office Entrance
+G3 = MapGoalPos("G3", 2.298, 0.065, -0.573, 0.818) # Home/Start Pos
+MapGoals = {"G1": G1, "G2": G2, "G3": G3}
+
+def GetNewGoal(curr_goal, direction):
+    if direction=="left":
+        if curr_goal == "G1":
+            return "G2"
+        elif curr_goal == "G2":
+            return "G3"
+        elif curr_goal == "G3":
+            return "G1"
+        else:
+            raise Exception("Invalid goal. Pick from [G1,G2,G3]")
+    elif direction=="right":
+        if curr_goal == "G1":
+            return "G3"
+        elif curr_goal == "G2":
+            return "G1"
+        elif curr_goal == "G3":
+            return "G2"
+        else:
+            raise Exception("Invalid goal. Pick from [G1,G2,G3]")
+    else:
+        raise Exception("Invalid direction. Pick from 'left' and 'right'.")
 
 # Point the head using controller
 class PointHeadClient(object):
@@ -112,23 +153,34 @@ class PointHeadClient(object):
         self.client.wait_for_result()
 
 
-def MoveHead(goal_time, pan = 0.0, tilt = 0.0):
+def MoveHead(goal_time, move_type="pos", pan = 0.0, tilt = 0.0):
     """
+    move_type: "pos" or "vel"
     goal_time: Seconds to reach specified goal.
                (Be careful when setting it low values i.e. < 1.0 sec, 
-                you might trip breakers if the movements are too fast)
+                you might trip breakers if the movements are too fast!)
+                To reset them, you may need to run 'sudo service robot stop && start
     """
     # global IS_MOVING
     # IS_MOVING = True
-    head_joint_positions[0] = pan
-    head_joint_positions[1] = tilt
 
     trajectory = JointTrajectory()
     trajectory.joint_names = head_joint_names
 
     trajectory.points.append(JointTrajectoryPoint())
-    trajectory.points[0].positions = head_joint_positions
-    trajectory.points[0].velocities = [0.0] * len(head_joint_positions)
+    if move_type == "pos":
+        head_joint_positions[0] = pan
+        head_joint_positions[1] = tilt
+        trajectory.points[0].positions = head_joint_positions
+        trajectory.points[0].velocities = [0.0] * len(head_joint_positions)
+    elif move_type == "vel":
+        head_joint_velocities[0] = pan
+        head_joint_velocities[1] = tilt
+        trajectory.points[0].positions = [0.0] * len(head_joint_positions)
+        trajectory.points[0].velocities = head_joint_velocities
+    else:
+        raise Exception('Invalid move_type for MoveHead(). Only "pos" and "vel" allowed.')
+
     trajectory.points[0].accelerations = [0.0] * len(head_joint_positions)
     trajectory.points[0].time_from_start = rospy.Duration(goal_time)
 
@@ -141,6 +193,30 @@ def MoveHead(goal_time, pan = 0.0, tilt = 0.0):
     # rospy.loginfo("Setting positions...")
     head_client.send_goal(head_goal)
     head_client.wait_for_result(rospy.Duration(goal_time + 2.0))
+
+# Move base using navigation stack
+class MoveBaseClient(object):
+
+    def __init__(self):
+        self.client = actionlib.SimpleActionClient("move_base", MoveBaseAction)
+        rospy.loginfo("Waiting for move_base...")
+        self.client.wait_for_server()
+
+    def goto(self, x, y, z, w, frame="map"):
+        move_goal = MoveBaseGoal()
+        move_goal.target_pose.pose.position.x = x
+        move_goal.target_pose.pose.position.y = y
+        # move_goal.target_pose.pose.orientation.z = sin(theta/2.0)
+        # move_goal.target_pose.pose.orientation.w = cos(theta/2.0)
+        move_goal.target_pose.pose.orientation.z = z
+        move_goal.target_pose.pose.orientation.w = w
+        move_goal.target_pose.header.frame_id = frame
+        move_goal.target_pose.header.stamp = rospy.Time.now()
+
+        # TODO wait for things to work
+        self.client.send_goal(move_goal)
+        self.client.wait_for_result()
+
 
 class CommandHandler:
     def __init__(self):
@@ -167,6 +243,18 @@ class CommandHandler:
         self.pose_teleop_command = Int32MultiArray()
         self.pose_teleop_command.data = [0,0]
         self.previous_pose_teleop_command = [0,0]
+        
+        self.current_map_goal = "G3"
+
+        self.current_state = 0
+        self.states = {0: "Initializeing", 
+                       1: "Waiting",
+                       2: "Searching",
+                       3: "Moving Forward",
+                       4: "Moving Backward",
+                       5: "Moving to Goal",
+                       6: "Making a circle"
+                      }
 
     def publish_base_command(self):
         for i in range(5):
@@ -177,7 +265,7 @@ class CommandHandler:
     def stop_moving(self):
         self.twist_msg.linear.x = 0.0
         self.twist_msg.angular.z = 0.0
-        rospy.loginfo("Stoppping...")
+        rospy.loginfo("Stopping...")
 
     def move_forward(self):
         if self.previous_pose_teleop_command[0] == 1:
@@ -193,15 +281,20 @@ class CommandHandler:
         self.twist_msg.angular.z = 0.0
         rospy.loginfo("Moving backward...")
 
-    def move_right(self):
-        self.twist_msg.linear.x = 0.0
-        self.twist_msg.angular.z = 0.3*-1.0
-        rospy.loginfo("Moving right...")
-        pass
+    def make_circle(self):
+        self.twist_msg.linear.x = 0.3
+        self.twist_msg.angular.z = 1.0
+        rospy.loginfo("Making circle...")
 
-    def move_left():
-        #TODO
-        pass
+    # def move_right(self):
+    #     self.twist_msg.linear.x = 0.0
+    #     self.twist_msg.angular.z = 0.3*-1.0
+    #     rospy.loginfo("Moving right...")
+    #     pass
+
+    # def move_left():
+    #     #TODO
+    #     pass
 
     def rotate_body(self, direction, speed=0.3):
         self.twist_msg.linear.x = 0.0
@@ -236,7 +329,7 @@ class CommandHandler:
                     curr_pan_goal += pan_speed*abs(actor_position.y)
                 elif actor_position.y < 0.0:
                     curr_pan_goal -= pan_speed*abs(actor_position.y)
-                MoveHead(0.001, curr_pan_goal, 0.0)
+                # MoveHead(0.001, curr_pan_goal, 0.0)
             
         prev_actor_position.x = data.point.x
         prev_actor_position.y = data.point.y
@@ -320,6 +413,7 @@ if __name__ == "__main__":
     rospy.loginfo("...connected.")
 
     head_action = PointHeadClient()
+    move_base = MoveBaseClient()
     # WE WON'T BE USING THESE
     # rospy.loginfo("Waiting for arm_controller...")
     # arm_client = actionlib.SimpleActionClient("arm_controller/follow_joint_trajectory", FollowJointTrajectoryAction)
@@ -334,7 +428,8 @@ if __name__ == "__main__":
     # Put say calls before Move()
 
     # soundhandle.say("Moving to home position", voice, volume)
-    MoveHead(1.0, 0.0, 0.0)
+    soundhandle.say(CH.states[CH.current_state], voice, volume)
+    MoveHead(1.0, pan=0.0, tilt=0.0)
     rospy.sleep(1.0)
     
     # soundhandle.say("Looking Right", voice, volume)
@@ -353,36 +448,90 @@ if __name__ == "__main__":
 
     curr_time = rospy.Time.now()
     prev_time = 0.0
+    prev_speech_time = 0.0
+    speech_delay = 5.0
     delay = 0.3
+
+    make_circle_timer = 10.0
+    make_circle_start_time = 0.0
 
     # rospy.Time.now()
     try:
         while not rospy.is_shutdown():
             curr_time = rospy.Time.now().to_time()
-            if (curr_time - prev_time) > delay:
+            if CH.current_state == 6 and (curr_time - make_circle_start_time) < make_circle_timer:
+                CH.publish_base_command()
+                pass
+            elif (curr_time - prev_time) > delay:
+                # SEARCH
                 if human_Xpos > 380.0:
-                    speed = 0.5*(abs(human_Xpos-320.0)/320.0)
+                    speed = 0.4*(abs(human_Xpos-320.0)/320.0)
                     CH.rotate_body("right", speed)
+                    CH.current_state = 2
+
                     # soundhandle.say("Rotating right", voice, volume)
                 elif human_Xpos < 240.0:
-                    speed = 0.3*(abs(human_Xpos-320.0)/320.0)
+                    speed = 0.4*(abs(human_Xpos-320.0)/320.0)
                     CH.rotate_body("left", speed)
+                    CH.current_state = 2
                     # soundhandle.say("Rotating left", voice, volume)
                 else:
+                    # TELEOP BASED ON POSE
+                    # TODO : 
+                    # - Add counters for each pose so that the robot moves only after getting
+                    #   n consecutive frames with a pose.(say 4)
+                    # - Improve Human detection by filtering based on pose.(or height of neck kp)
+                    #   Maybe say "too far away if person is too far away"
+                    # - 
                     # CH.stop_moving()
-                    if CH.pose_teleop_command.data.data[0] == 1:
+                    if CH.pose_teleop_command.data.data[0] == 1: # Left_arm_bent
                         CH.move_forward()
+                        CH.current_state = 3
                         CH.previous_pose_teleop_command[0] = 1
-                    elif CH.pose_teleop_command.data.data[0] == -1:
+
+                    elif CH.pose_teleop_command.data.data[0] == -1: # Right_arm_bent
                         CH.move_backward()
+                        CH.current_state = 4
                         CH.previous_pose_teleop_command[0] = -1
+
+                    elif CH.pose_teleop_command.data.data[0] == 2 and CH.pose_teleop_command.data.data[1] == 2:
+                        CH.make_circle()
+                        make_circle_start_time = curr_time
+                        CH.current_state = 6
+                        CH.previous_pose_teleop_command[0] = 2
+
+                    elif DEMO_P2:
+                        if CH.pose_teleop_command.data.data[1] == 1: # Point_left
+                            new_goal = MapGoals[GetNewGoal(CH.current_map_goal, "left")]
+                            CH.current_state = 5
+                            CH.current_map_goal = new_goal.name
+                            move_base.goto(new_goal.x, new_goal.y, new_goal.rz, new_goal.rw)
+                            MoveHead(1.0, pan=0.0, tilt=0.0)
+
+                        elif CH.pose_teleop_command.data.data[1] == -1: # Point_right
+                            new_goal = MapGoals[GetNewGoal(CH.current_map_goal, "right")]
+                            CH.current_state = 5
+                            CH.current_map_goal = new_goal.name
+                            move_base.goto(new_goal.x, new_goal.y, new_goal.rz, new_goal.rw)
+                            MoveHead(1.0, pan=0.0, tilt=0.0)
+
                     else:
                         CH.stop_moving()
+                        CH.current_state = 1
                         CH.previous_pose_teleop_command[0] = 0
                 
                 prev_time = curr_time
             
                 CH.publish_base_command()
+            
+            if (curr_time - prev_speech_time) > speech_delay:
+                prev_speech_time = curr_time
+                message = CH.states[CH.current_state]
+                if CH.current_state == 5:
+                    message += f" {CH.current_map_goal}"
+                soundhandle.say(CH.states[CH.current_state], voice, volume)
+        
+
     except KeyboardInterrupt:
         rospy.signal_shutdown()
 

@@ -1,0 +1,9 @@
+<launch>
+
+  <!-- Start navigation -->
+  <include file="$(find fetch_move_v1)/launch/fetch_CRL_nav.launch" />
+
+  <!-- Start Demo Node -->
+  <node name="basic_command_publisher" pkg="fetch_move_v1" type="basic_command_publisher.py" />
+
+</launch>

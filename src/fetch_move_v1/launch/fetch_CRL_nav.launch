@@ -1,0 +1,8 @@
+<launch>
+
+  <include file="$(find fetch_navigation)/launch/fetch_nav.launch" >
+    <arg name="map_file" value="/home/neeraj/FetchSim/src/maps/CRL_G_Nov16.yaml" />
+  </include>
+
+</launch>
+
