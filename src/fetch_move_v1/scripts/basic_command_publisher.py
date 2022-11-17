@@ -529,7 +529,7 @@ if __name__ == "__main__":
                 message = CH.states[CH.current_state]
                 if CH.current_state == 5:
                     message += f" {CH.current_map_goal}"
-                soundhandle.say(CH.states[CH.current_state], voice, volume)
+                soundhandle.say(message, voice, volume)
         
 
     except KeyboardInterrupt:
