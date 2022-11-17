@@ -253,7 +253,9 @@ class CommandHandler:
                        3: "Moving Forward",
                        4: "Moving Backward",
                        5: "Moving to Goal",
-                       6: "Making a circle"
+                       6: "Making a Circle",
+                       7: "Looking Left",
+                       8: "Looking Right"
                       }
 
     def publish_base_command(self):
@@ -352,7 +354,17 @@ class CommandHandler:
         RShoulder_kp = [data.data[10], data.data[11]]
         
         # Calculate Human X Position (Setpoint)
-        human_Xpos = (LShoulder_kp[0] + Neck_kp[0] + RShoulder_kp[0])// 3
+        if LShoulder_kp[0] > 0.0 and RShoulder_kp[0] > 0.0:
+            if Neck_kp[0] > 0.0:
+                human_Xpos = (LShoulder_kp[0] + Neck_kp[0] + RShoulder_kp[0])// 3
+            else:
+                human_Xpos = (LShoulder_kp[0] + RShoulder_kp[0])// 3
+        else:
+            if Neck_kp[0] > 0.0:
+                human_Xpos = Neck_kp[0]
+            else:
+                human_Xpos = 320 # Assume human is in the center.
+        
         # rospy.loginfo(f"[[ human_pos: {human_Xpos} ]]")
         
         # head_action.look_at(0.0, 0.0, 0.0, 'base_link/torso_lift_link/head_pan_link/head_tilt_link/head_camera_link/head_camera_rgb_frame/human_actor')
