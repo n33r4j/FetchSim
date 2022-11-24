@@ -50,7 +50,7 @@ from sound_play.msg import SoundRequest
 from sound_play.libsoundplay import SoundClient
 
 # DEMO_P1 = True
-DEMO_P2 = False
+DEMO_P2 = True
 
 
 head_joint_names = ["head_pan_joint", "head_tilt_joint"]
@@ -106,9 +106,16 @@ class MapGoalPos:
 
 # For Map CRL_G_Nov16
 # You will need to update these if you generate a new map.
-G1 = MapGoalPos("G1", 2.619, -4.452, 0.644, 0.764) # Lab Entrance
-G2 = MapGoalPos("G2", 5.703, -4.177, 0.913, 0.406) # Office Entrance
-G3 = MapGoalPos("G3", 2.298, 0.065, -0.573, 0.818) # Home/Start Pos
+# Nov16 Map
+# G1 = MapGoalPos("G1", 2.619, -4.452, 0.644, 0.764) # Lab Entrance
+# G2 = MapGoalPos("G2", 5.703, -4.177, 0.913, 0.406) # Office Entrance
+# G3 = MapGoalPos("G3", 2.298, 0.065, -0.573, 0.818) # Home/Start Pos
+
+# Nov16 Map
+G1 = MapGoalPos("G1", 0.100, 0.645, -0.499, 0.866) # Lab Entrance
+G2 = MapGoalPos("G2", -1.371, -1.858, 0.057, 0.998) # Office Entrance
+G3 = MapGoalPos("G3", 3.871, -2.070, 0.998, 0.049) # Home/Start Pos
+
 MapGoals = {"G1": G1, "G2": G2, "G3": G3}
 
 def GetNewGoal(curr_goal, direction):
@@ -349,9 +356,10 @@ class CommandHandler:
         # soundhandle.say("I see a human", voice, volume)
 
         # Get Keypoints data
-        LShoulder_kp = [data.data[4], data.data[5]]
+        RShoulder_kp = [data.data[4], data.data[5]]
         Neck_kp = [data.data[2], data.data[3]]
-        RShoulder_kp = [data.data[10], data.data[11]]
+        LShoulder_kp = [data.data[10], data.data[11]]
+        MidHip_kp = [data.data[16], data.data[17]]
         
         # Calculate Human X Position (Setpoint)
         if LShoulder_kp[0] > 0.0 and RShoulder_kp[0] > 0.0:
@@ -359,11 +367,16 @@ class CommandHandler:
                 human_Xpos = (LShoulder_kp[0] + Neck_kp[0] + RShoulder_kp[0])// 3
             else:
                 human_Xpos = (LShoulder_kp[0] + RShoulder_kp[0])// 3
-        else:
-            if Neck_kp[0] > 0.0:
-                human_Xpos = Neck_kp[0]
+        elif Neck_kp[0] > 0.0:
+            if MidHip_kp[0] > 0.0:
+                human_Xpos = (Neck_kp[0]+MidHip_kp[0])//2
             else:
-                human_Xpos = 320 # Assume human is in the center.
+                human_Xpos = Neck_kp[0] 
+        else:  # If robot can't see shoulders, only hips visible
+            if MidHip_kp[0] > 0.0:
+                human_Xpos = MidHip_kp[0]
+            else:
+                human_Xpos = 320# Assume human is in the center.
         
         # rospy.loginfo(f"[[ human_pos: {human_Xpos} ]]")
         
@@ -461,7 +474,7 @@ if __name__ == "__main__":
     curr_time = rospy.Time.now()
     prev_time = 0.0
     prev_speech_time = 0.0
-    speech_delay = 5.0
+    speech_delay = 4.0
     delay = 0.3
 
     make_circle_timer = 10.0
@@ -496,41 +509,42 @@ if __name__ == "__main__":
                     #   Maybe say "too far away if person is too far away"
                     # - 
                     # CH.stop_moving()
-                    if CH.pose_teleop_command.data.data[0] == 1: # Left_arm_bent
-                        CH.move_forward()
-                        CH.current_state = 3
-                        CH.previous_pose_teleop_command[0] = 1
+                    if type(CH.pose_teleop_command.data) is not list:
+                        if CH.pose_teleop_command.data.data[0] == 1: # Left_arm_bent
+                            CH.move_forward()
+                            CH.current_state = 3
+                            CH.previous_pose_teleop_command[0] = 1
 
-                    elif CH.pose_teleop_command.data.data[0] == -1: # Right_arm_bent
-                        CH.move_backward()
-                        CH.current_state = 4
-                        CH.previous_pose_teleop_command[0] = -1
+                        elif CH.pose_teleop_command.data.data[0] == -1: # Right_arm_bent
+                            CH.move_backward()
+                            CH.current_state = 4
+                            CH.previous_pose_teleop_command[0] = -1
 
-                    elif CH.pose_teleop_command.data.data[0] == 2 and CH.pose_teleop_command.data.data[1] == 2:
-                        CH.make_circle()
-                        make_circle_start_time = curr_time
-                        CH.current_state = 6
-                        CH.previous_pose_teleop_command[0] = 2
+                        elif CH.pose_teleop_command.data.data[0] == 2 and CH.pose_teleop_command.data.data[1] == 2:
+                            CH.make_circle()
+                            make_circle_start_time = curr_time
+                            CH.current_state = 6
+                            CH.previous_pose_teleop_command[0] = 2
 
-                    elif DEMO_P2:
-                        if CH.pose_teleop_command.data.data[1] == 1: # Point_left
-                            new_goal = MapGoals[GetNewGoal(CH.current_map_goal, "left")]
-                            CH.current_state = 5
-                            CH.current_map_goal = new_goal.name
-                            move_base.goto(new_goal.x, new_goal.y, new_goal.rz, new_goal.rw)
-                            MoveHead(1.0, pan=0.0, tilt=0.0)
+                        elif DEMO_P2:
+                            if CH.pose_teleop_command.data.data[1] == 1: # Point_left
+                                new_goal = MapGoals[GetNewGoal(CH.current_map_goal, "left")]
+                                CH.current_state = 5
+                                CH.current_map_goal = new_goal.name
+                                move_base.goto(new_goal.x, new_goal.y, new_goal.rz, new_goal.rw)
+                                MoveHead(1.0, pan=0.0, tilt=0.0)
 
-                        elif CH.pose_teleop_command.data.data[1] == -1: # Point_right
-                            new_goal = MapGoals[GetNewGoal(CH.current_map_goal, "right")]
-                            CH.current_state = 5
-                            CH.current_map_goal = new_goal.name
-                            move_base.goto(new_goal.x, new_goal.y, new_goal.rz, new_goal.rw)
-                            MoveHead(1.0, pan=0.0, tilt=0.0)
+                            elif CH.pose_teleop_command.data.data[1] == -1: # Point_right
+                                new_goal = MapGoals[GetNewGoal(CH.current_map_goal, "right")]
+                                CH.current_state = 5
+                                CH.current_map_goal = new_goal.name
+                                move_base.goto(new_goal.x, new_goal.y, new_goal.rz, new_goal.rw)
+                                MoveHead(1.0, pan=0.0, tilt=0.0)
 
-                    else:
-                        CH.stop_moving()
-                        CH.current_state = 1
-                        CH.previous_pose_teleop_command[0] = 0
+                        else:
+                            CH.stop_moving()
+                            CH.current_state = 1
+                            CH.previous_pose_teleop_command[0] = 0
                 
                 prev_time = curr_time
             
