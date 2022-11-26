@@ -50,7 +50,7 @@ from sound_play.msg import SoundRequest
 from sound_play.libsoundplay import SoundClient
 
 # DEMO_P1 = True
-DEMO_P2 = True
+DEMO_P2 = False
 
 
 head_joint_names = ["head_pan_joint", "head_tilt_joint"]
@@ -317,7 +317,7 @@ class CommandHandler:
         MoveHead(0.1, 0.05*(-1.0 if direction=="right" else 1.0), 0.0)
 
     def teleop_command_callback(self, data):
-        rospy.loginfo(f"I heard Pose Teleop Command, [{data.data[0], data.data[1]}]")
+        # rospy.loginfo(f"I heard Pose Teleop Command, [{data.data[0], data.data[1]}]")
         self.pose_teleop_command.data = data
     
     def human_position_callback(self, data):
@@ -437,18 +437,11 @@ if __name__ == "__main__":
     head_client.wait_for_server()
     rospy.loginfo("...connected.")
 
-    head_action = PointHeadClient()
-    move_base = MoveBaseClient()
-    # WE WON'T BE USING THESE
-    # rospy.loginfo("Waiting for arm_controller...")
-    # arm_client = actionlib.SimpleActionClient("arm_controller/follow_joint_trajectory", FollowJointTrajectoryAction)
-    # arm_client.wait_for_server()
-    # rospy.loginfo("...connected.")
+    rospy.loginfo("Hello--------------------------")
 
-    # rospy.loginfo("Waiting for gripper_controller...")
-    # gripper_client = actionlib.SimpleActionClient("gripper_controller/gripper_action", GripperCommandAction)
-    # gripper_client.wait_for_server()
-    # rospy.loginfo("...connected.")
+    head_action = PointHeadClient()
+    if DEMO_P2:
+        move_base = MoveBaseClient()
     
     # Put say calls before Move()
 
@@ -479,27 +472,32 @@ if __name__ == "__main__":
 
     make_circle_timer = 10.0
     make_circle_start_time = 0.0
+    
 
     # rospy.Time.now()
     try:
         while not rospy.is_shutdown():
             curr_time = rospy.Time.now().to_time()
+            # rospy.loginfo("--[ RUNNING ]--")
             if CH.current_state == 6 and (curr_time - make_circle_start_time) < make_circle_timer:
                 CH.publish_base_command()
                 pass
             elif (curr_time - prev_time) > delay:
                 # SEARCH
+                # rospy.loginfo("--[ SEARCHING ]--")
                 if human_Xpos > 380.0:
-                    speed = 0.4*(abs(human_Xpos-320.0)/320.0)
+                    speed = 0.7*(abs(human_Xpos-320.0)/320.0)
                     CH.rotate_body("right", speed)
                     CH.current_state = 2
 
                     # soundhandle.say("Rotating right", voice, volume)
+                    rospy.loginfo(f"--[ Rotating RIGHT {speed}]--")
                 elif human_Xpos < 240.0:
-                    speed = 0.4*(abs(human_Xpos-320.0)/320.0)
+                    speed = 0.7*(abs(human_Xpos-320.0)/320.0)
                     CH.rotate_body("left", speed)
                     CH.current_state = 2
                     # soundhandle.say("Rotating left", voice, volume)
+                    rospy.loginfo(f"--[ Rotating LEFT {speed}]--")
                 else:
                     # TELEOP BASED ON POSE
                     # TODO : 
@@ -520,11 +518,11 @@ if __name__ == "__main__":
                             CH.current_state = 4
                             CH.previous_pose_teleop_command[0] = -1
 
-                        elif CH.pose_teleop_command.data.data[0] == 2 and CH.pose_teleop_command.data.data[1] == 2:
-                            CH.make_circle()
-                            make_circle_start_time = curr_time
-                            CH.current_state = 6
-                            CH.previous_pose_teleop_command[0] = 2
+                        # elif CH.pose_teleop_command.data.data[0] == 2 and CH.pose_teleop_command.data.data[1] == 2:
+                        #     CH.make_circle()
+                        #     make_circle_start_time = curr_time
+                        #     CH.current_state = 6
+                        #     CH.previous_pose_teleop_command[0] = 2
 
                         elif DEMO_P2:
                             if CH.pose_teleop_command.data.data[1] == 1: # Point_left
