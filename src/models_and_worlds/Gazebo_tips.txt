@@ -1,0 +1,22 @@
+Gazebo Tips
+
+1) To reset a gazebo simulation for python,
+
+	import rospy
+	from std_srv.srv import Empty
+
+	rospy.init_node('reset_world')
+
+	rospy.wait_for_service('/gazebo/reset_world')
+	reset_world = rospy.ServiceProxy('/gazebo/reset_world', Emptry)
+
+	reset_world()
+
+2) The default models are located at /usr/share/gazebo-11/media/models
+
+3) The actor's joint positions are published to /gazebo/<world_name>/skeleton_pose/info
+	You can try writing a node that publishes to this topic ?
+
+4) https://prabhjotkaurgosal.com/create-animated-human-models-for-gazebo-using-makehuman-and-blender/2/
+
+5) https://github.com/BruceChanJianLe/gazebo-actor#Moving-Actor-with-Animation

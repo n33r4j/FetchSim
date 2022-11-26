@@ -1,0 +1,86 @@
+<sdf version="1.6">
+	<world name="point_scene_01">
+		<include>
+			<uri>model://ground_plane</uri>
+		</include>
+		<include>
+			<uri>model://sun</uri>
+		</include>
+
+		<actor name="actor1">
+			<pose>5 0 0.85 0 0 -1.57</pose>
+			<skin>
+				<filename>/home/neeraj/Gazebo_tuts/dae/crossed_arms_v1.dae</filename>
+			</skin>
+			<animation name="crossedArms">
+				<filename>/home/neeraj/Gazebo_tuts/dae/crossed_arms_v1.dae</filename>
+				<!-- No interpolation available for y or z axes -->
+			</animation>
+			<script>
+				<loop>true</loop>
+				<trajectory id="0" type="crossedArms">
+					<waypoint>
+						<time>0</time>
+						<pose>5 0 0.85 0 0 -1.57</pose>
+					</waypoint>
+
+					<waypoint>
+						<time>10</time>
+						<pose>5 0 0.85 0 0 -1.57</pose>
+					</waypoint>
+				</trajectory>
+			</script>
+		</actor>
+
+		<actor name="actor2">
+			<pose>5 -2 0.85 0 0 -1.57</pose>
+			<skin>
+				<filename>/home/neeraj/Gazebo_tuts/dae/point_right_v1.dae</filename>
+			</skin>
+			<animation name="pointingRight">
+				<filename>/home/neeraj/Gazebo_tuts/dae/point_right_v1.dae</filename>
+				<!-- No interpolation available for y or z axes -->
+			</animation>
+			<script>
+				<loop>true</loop>
+				<trajectory id="0" type="pointingRight">
+					<waypoint>
+						<time>0</time>
+						<pose>5 -2 0.85 0 0 -1.57</pose>
+					</waypoint>
+
+					<waypoint>
+						<time>10</time>
+						<pose>5 -2 0.85 0 0 -1.57</pose>
+					</waypoint>
+				</trajectory>
+			</script>
+		</actor>
+
+		<actor name="actor3">
+			<pose>5 2 0.85 0 0 -1.57</pose>
+			<skin>
+				<filename>/home/neeraj/Gazebo_tuts/dae/point_left_v1.dae</filename>
+			</skin>
+			<animation name="pointingLeft">
+				<filename>/home/neeraj/Gazebo_tuts/dae/point_left_v1.dae</filename>
+				<!-- No interpolation available for y or z axes -->
+			</animation>
+			<script>
+				<loop>true</loop>
+				<trajectory id="0" type="pointingLeft">
+					<waypoint>
+						<time>0</time>
+						<pose>5 2 0.85 0 0 -1.57</pose>
+					</waypoint>
+
+					<waypoint>
+						<time>10</time>
+						<pose>5 2 0.85 0 0 -1.57</pose>
+					</waypoint>
+				</trajectory>
+			</script>
+		</actor>
+	</world>
+</sdf>
+

@@ -1,0 +1,25 @@
+<?xml version="1.0" ?>
+<!--Gazebo actor tutorial (https://classic.gazebosim.org/tutorials?tut=actor&cat=build_robot)-->
+<sdf version="1.6">
+	<world name="default">
+		<include>
+			<uri>model://sun</uri>
+		</include>
+		<actor name="actor">
+			<skin>
+<!--				<filename>walk.dae</filename>-->
+				<filename>moonwalk.dae</filename>
+<!--				<filename>run.dae</filename>-->
+<!--				<filename>sit_down.dae</filename>-->
+<!--				<filename>sitting.dae</filename>-->
+<!--				<filename>stand_up.dae</filename>-->
+<!--				<filename>talk_a.dae</filename>-->
+<!--				<filename>talk_b.dae</filename>-->
+			</skin>
+			<animation name="animation">
+				<filename>walk.dae</filename>
+			</animation>
+		</actor>
+	</world>
+</sdf>
+
